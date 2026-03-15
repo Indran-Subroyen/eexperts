@@ -1,0 +1,77 @@
+name: CD
+
+on:
+  # auto trigger after CI passes
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+  # manual trigger — pick which environments to deploy
+  workflow_dispatch:
+    inputs:
+      deploy_dev:
+        description: "Deploy to dev"
+        type: boolean
+        default: true
+      deploy_staging:
+        description: "Deploy to staging"
+        type: boolean
+        default: true
+      deploy_prod:
+        description: "Deploy to production"
+        type: boolean
+        default: false
+      image_tag:
+        description: "Image tag (git SHA) to deploy"
+        required: true
+        type: string
+
+jobs:
+  deploy-dev:
+    # auto: run if CI passed | manual: run if dev checkbox is ticked
+    if: >
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'workflow_dispatch' && inputs.deploy_dev)
+    uses: ./.github/workflows/deployment.yml
+    with:
+      environment: dev
+      namespace: dev
+      image_tag: ${{ github.event.workflow_run.head_sha || inputs.image_tag }}
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+  deploy-staging:
+    # auto: needs dev first | manual: skip dev if not selected
+    needs: deploy-dev
+    if: >
+      always() &&
+      ((github.event_name == 'workflow_run') ||
+      (github.event_name == 'workflow_dispatch' && inputs.deploy_staging))
+    uses: ./.github/workflows/deployment.yml
+    with:
+      environment: staging
+      namespace: staging
+      image_tag: ${{ github.event.workflow_run.head_sha || inputs.image_tag }}
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+  deploy-prod:
+    needs: deploy-staging
+    if: >
+      always() &&
+      ((github.event_name == 'workflow_run') ||
+      (github.event_name == 'workflow_dispatch' && inputs.deploy_prod))
+    uses: ./.github/workflows/deployment.yml
+    with:
+      environment: production
+      namespace: production
+      image_tag: ${{ github.event.workflow_run.head_sha || inputs.image_tag }}
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}

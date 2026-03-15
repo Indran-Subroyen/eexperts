@@ -1,0 +1,63 @@
+name: Reusable Deploy
+
+# this workflow can't run on its own — it's called by cd.yml
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "Target environment (dev, staging, production)"
+        required: true
+        type: string
+      namespace:
+        description: "Kubernetes namespace to deploy to"
+        required: true
+        type: string
+      image_tag:
+        description: "Docker image tag (git SHA)"
+        required: true
+        type: string
+    secrets:
+      AZURE_CLIENT_ID:
+        required: true
+      AZURE_TENANT_ID:
+        required: true
+      AZURE_SUBSCRIPTION_ID:
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}   # scopes vars/secrets to this environment
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # login to Azure using OIDC (workload identity federation — no passwords)
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # vars.AKS_RESOURCE_GROUP and vars.AKS_CLUSTER_NAME are set per environment
+      - name: Set AKS context
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ vars.AKS_RESOURCE_GROUP }}
+          cluster-name: ${{ vars.AKS_CLUSTER_NAME }}
+
+      # pull image from the environment's own registry
+      - name: Deploy to ${{ inputs.environment }}
+        run: |
+          kubectl set image deployment/gists-api \
+            gists-api=${{ vars.ACR_LOGIN_SERVER }}/gists-api:${{ inputs.image_tag }} \
+            -n ${{ inputs.namespace }}
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/gists-api -n ${{ inputs.namespace }} --timeout=120s
+
+      - name: Smoke test
+        run: |
+          SVC_IP=$(kubectl get svc gists-api -n ${{ inputs.namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          curl -f http://$SVC_IP:8080/healthz
