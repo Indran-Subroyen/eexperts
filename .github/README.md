@@ -11,7 +11,7 @@ Push to main → CI (test → build → push) → CD (dev → staging → prod)
 | File | Purpose | Trigger |
 |------|---------|---------|
 | `ci.yml` | Run tests, build Docker image, push to dev registry | Push to main, PRs |
-| `cd.yml` | Deploy to dev → staging → prod | After CI passes on main |
+| `cd.yml` | Deploy to dev → staging → prod | After CI passes on main, or manual dispatch |
 | `deployment.yml` | Reusable deploy logic (called by cd.yml) | Not triggered directly |
 
 ## Environment Setup
@@ -71,3 +71,15 @@ jobs:
 
 Same workflow, same code — different values per environment. This is why `deployment.yml` works for all three environments without any if/else logic.
 
+## Manual Dispatch
+
+CD can be triggered manually via **Actions → CD → Run workflow**:
+
+| Input | Description | Default |
+|-------|-------------|---------|
+| `deploy_dev` | Deploy to dev | true |
+| `deploy_staging` | Deploy to staging | true |
+| `deploy_prod` | Deploy to production | false |
+| `image_tag` | Image tag (git SHA) to deploy | required |
+
+This allows deploying to specific environments without going through the full chain — useful for hotfixes or redeploying a previous version.
