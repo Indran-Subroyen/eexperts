@@ -1,0 +1,11 @@
+.venv
+.git
+.github
+__pycache__
+.pytest_cache
+*.pyc
+test_app.py
+requirements-dev.txt
+README.md
+README_SOLUTION.md
+Makefile

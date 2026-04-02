@@ -62,9 +62,17 @@ def user_gists(username):
     if resp.status_code == 404:
         return jsonify({"error": f"User '{username}' not found"}), 404
 
+    if resp.status_code == 403:
+        # GitHub rate-limits anonymous requests to 60/hr
+        retry_after = resp.headers.get("Retry-After", "unknown")
+        return jsonify({
+            "error": "GitHub API rate limit exceeded",
+            "retry_after_seconds": retry_after,
+        }), 429
+
     resp.raise_for_status()
 
-    # pull out only the fields we care about
+    # pull out only the fields we care about(I selected a few only)
     gists = [
         {
             "id": g["id"],

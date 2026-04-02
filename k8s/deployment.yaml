@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gists-api
+  labels:
+    app: gists-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gists-api
+  template:
+    metadata:
+      labels:
+        app: gists-api
+    spec:
+      containers:
+        - name: gists-api
+          image: eexperts-test-api:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          # health check — K8s uses this to know if the app is ready
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          # health check — K8s uses this to restart the pod if it's stuck
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
